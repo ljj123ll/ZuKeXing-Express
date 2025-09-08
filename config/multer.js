@@ -2,6 +2,7 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const Product = require('../models/Product'); // 导入Product模型
 
 // 确保上传目录存在
 const ensureUploadDir = (dir) => {
@@ -28,10 +29,43 @@ const avatarStorage = multer.diskStorage({
 
 // 配置轮播图照片上传的存储
 const productStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '..', 'uploads', 'products');
-    ensureUploadDir(uploadDir);
-    cb(null, uploadDir);
+  destination: async (req, file, cb) => {
+    try {
+      // 从请求参数获取产品ID
+      const productId = req.params.id;
+      
+      // 如果是新建产品时上传图片，type信息可能在请求体中
+      if (req.body.type) {
+        const type = req.body.type;
+        // 验证type值是否有效
+        if (['top', 'mid', 'dom'].includes(type)) {
+          const uploadDir = path.join(__dirname, '..', 'uploads', 'products', type);
+          ensureUploadDir(uploadDir);
+          return cb(null, uploadDir);
+        }
+      }
+      
+      // 如果是更新现有产品的图片，从数据库中查询type
+      if (productId) {
+        const product = await Product.findById(productId);
+        if (product && product.type && ['top', 'mid', 'dom'].includes(product.type)) {
+          const uploadDir = path.join(__dirname, '..', 'uploads', 'products', product.type);
+          ensureUploadDir(uploadDir);
+          return cb(null, uploadDir);
+        }
+      }
+      
+      // 默认上传目录
+      const uploadDir = path.join(__dirname, '..', 'uploads', 'products');
+      ensureUploadDir(uploadDir);
+      cb(null, uploadDir);
+    } catch (error) {
+      console.error('Error determining upload directory:', error);
+      // 如果出现错误，使用默认目录
+      const uploadDir = path.join(__dirname, '..', 'uploads', 'products');
+      ensureUploadDir(uploadDir);
+      cb(null, uploadDir);
+    }
   },
   filename: (req, file, cb) => {
     // 使用时间戳和产品ID来确保文件名唯一

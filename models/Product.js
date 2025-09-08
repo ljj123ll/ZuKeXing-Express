@@ -26,6 +26,12 @@ const productSchema = new mongoose.Schema({
     type: Boolean,
     default: true, // 默认启用
     required: true
+  },
+  type: {
+    type: String,
+    required: true,
+    enum: ['top', 'mid', 'dom'], // 限制取值为top, mid, dom
+    trim: true
   }
 }, {
   timestamps: true // 自动添加createdAt和updatedAt字段

@@ -30,14 +30,31 @@ router.get('/:id', getProduct, (req, res) => {
   res.json({ code: 200, data: res.product, message: 'success' });
 });
 
-// 4. 新增轮播图
+// 4. 根据type获取启用的轮播图
+router.get('/type/:type', async (req, res) => {
+  try {
+    const { type } = req.params;
+    // 验证type值是否有效
+    if (!['top', 'mid', 'dom'].includes(type)) {
+      return res.status(400).json({ code: 400, message: '轮播图类型无效' });
+    }
+    // 查询指定类型且启用的轮播图
+    const products = await Product.find({ isActive: true, type });
+    res.json({ code: 200, data: products, message: 'success' });
+  } catch (err) {
+    res.status(500).json({ code: 500, message: err.message });
+  }
+});
+
+// 5. 新增轮播图
 router.post('/', async (req, res) => {
   const product = new Product({
     productId: req.body.productId,
     name: req.body.name,
     description: req.body.description,
     imageUrl: req.body.imageUrl,
-    isActive: req.body.isActive !== undefined ? req.body.isActive : true
+    isActive: req.body.isActive !== undefined ? req.body.isActive : true,
+    type: req.body.type
   });
 
   try {
@@ -48,7 +65,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// 5. 修改轮播图
+// 6. 修改轮播图
 router.put('/:id', getProduct, async (req, res) => {
   if (req.body.productId != null) {
     res.product.productId = req.body.productId;
@@ -65,6 +82,9 @@ router.put('/:id', getProduct, async (req, res) => {
   if (req.body.isActive != null) {
     res.product.isActive = req.body.isActive;
   }
+  if (req.body.type != null) {
+    res.product.type = req.body.type;
+  }
 
   try {
     const updatedProduct = await res.product.save();
@@ -74,17 +94,18 @@ router.put('/:id', getProduct, async (req, res) => {
   }
 });
 
-// 6. 删除轮播图
+// 7. 删除轮播图
 router.delete('/:id', getProduct, async (req, res) => {
   try {
-    await res.product.remove();
+    // 使用deleteOne()方法替代已废弃的remove()方法
+    await res.product.deleteOne();
     res.json({ code: 200, message: '轮播图已删除' });
   } catch (err) {
     res.status(500).json({ code: 500, message: err.message });
   }
 });
 
-// 7. 上传轮播图照片
+// 8. 上传轮播图照片
 router.post('/:id/upload', uploadProductImage, async (req, res) => {
   try {
     // 检查是否有文件上传
@@ -92,14 +113,24 @@ router.post('/:id/upload', uploadProductImage, async (req, res) => {
       return res.status(400).json({ code: 400, message: '没有上传文件' });
     }
 
-    // 构建文件的URL路径
-    // 注意：这里假设服务器运行在根路径，如果有子路径需要调整
-    const imageUrl = `/uploads/products/${req.file.filename}`;
-    
-    // 查找并更新产品
+    // 获取产品信息，用于构建正确的文件路径
     const product = await Product.findById(req.params.id);
     if (!product) {
       return res.status(404).json({ code: 404, message: '无法找到轮播图' });
+    }
+
+    // 构建文件的URL路径
+    // 根据产品类型确定是否需要添加子目录
+    let imageUrl;
+    if (product.type && ['top', 'mid', 'dom'].includes(product.type)) {
+      // 图片已上传到类型对应的子目录
+      imageUrl = `/uploads/products/${product.type}/${req.file.filename}`;
+    } else if (req.body.type && ['top', 'mid', 'dom'].includes(req.body.type)) {
+      // 如果是新建产品时上传，使用请求体中的type
+      imageUrl = `/uploads/products/${req.body.type}/${req.file.filename}`;
+    } else {
+      // 默认路径
+      imageUrl = `/uploads/products/${req.file.filename}`;
     }
 
     // 更新产品的imageUrl
